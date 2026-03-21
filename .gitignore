@@ -1,0 +1,71 @@
+# Python cache
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+
+venv/
+env/
+.venv/
+
+# Environment variables
+
+.env
+
+# Jupyter Notebook checkpoints
+
+.ipynb_checkpoints/
+
+# Logs
+
+*.log
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# VS Code / IDE
+
+.vscode/
+.idea/
+
+# Build / distribution
+
+build/
+dist/
+*.egg-info/
+
+# Data files (you can track separately if needed)
+
+data/
+*.csv
+*.xlsx
+
+# Model files
+
+models/
+*.pkl
+*.joblib
+*.h5
+
+# Temporary files
+
+*.tmp
+*.temp
+
+# SQLite database (if you add later)
+
+*.db
+
+# Coverage / testing
+
+.coverage
+htmlcov/
+
+# Mac system files
+
+.AppleDouble
+.LSOverride
