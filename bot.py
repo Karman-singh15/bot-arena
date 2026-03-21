@@ -6,10 +6,15 @@ class Bot:
         self.risk_tolerance = risk_tolerance
 
     def decide(self, price):
-        # very simple logic for now
-        if price < 100 and self.cash > price:
+        # Adjust thresholds based on risk_tolerance
+        # Conservative bots (low risk_tolerance) demand lower prices to buy and sell quickly
+        # Aggressive bots (high risk_tolerance) buy closer to base price and hold for larger gains
+        buy_threshold = 95 + (self.risk_tolerance * 5)
+        sell_threshold = 101 + (self.risk_tolerance * 5)
+        
+        if price < buy_threshold and self.cash >= price:
             return "BUY"
-        elif price > 102 and self.shares > 0:
+        elif price > sell_threshold and self.shares > 0:
             return "SELL"
         return "HOLD"
 
