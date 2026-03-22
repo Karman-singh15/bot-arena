@@ -17,10 +17,15 @@ def main():
         return
         
     print("Setting up PPO RL Agent...")
-    model = PPO("MlpPolicy", env, verbose=1, learning_rate=0.0003)
+    if os.path.exists("ppo_trading_bot.zip"):
+        print("Loading existing model...")
+        model = PPO.load("ppo_trading_bot", env=env)
+    else:
+        print("Creating new model...")
+        model = PPO("MlpPolicy", env, verbose=1, learning_rate=0.0003)
     
     print("Training the agent for 50,000 timesteps... (This may take a minute)")
-    model.learn(total_timesteps=50000)
+    model.learn(total_timesteps=100000)
     
     print("Training complete! Saving model to 'ppo_trading_bot'...")
     model.save("ppo_trading_bot")
