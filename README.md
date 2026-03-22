@@ -1,4 +1,4 @@
-# 🧠 Bot Arena
+# Bot Arena
 
 A multi-agent simulation system that models how traders from different economic backgrounds behave under changing market and geopolitical conditions.
 

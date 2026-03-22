@@ -1,5 +1,5 @@
 from market import Market
-from bot import Bot
+from bot import Bot, RLBot
 
 class Simulation:
     def __init__(self):
@@ -7,7 +7,8 @@ class Simulation:
 
         self.bots = [
             Bot("Conservative", 1000, 0.2),
-            Bot("Aggressive", 1000, 0.8)
+            Bot("Aggressive", 1000, 0.8),
+            RLBot("AI-Trader", 1000, 0.5)
         ]
         self.trade_logs = {bot.name: [] for bot in self.bots}
 
