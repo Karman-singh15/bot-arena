@@ -24,7 +24,7 @@ def main():
         print("Creating new model...")
         model = PPO("MlpPolicy", env, verbose=1, learning_rate=0.0003)
     
-    print("Training the agent for 50,000 timesteps... (This may take a minute)")
+    print("Training the agent for 100,000 timesteps... (This may take a minute)")
     model.learn(total_timesteps=100000)
     
     print("Training complete! Saving model to 'ppo_trading_bot'...")

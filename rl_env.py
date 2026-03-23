@@ -15,14 +15,14 @@ class TradingEnv(gym.Env):
         self.action_space = spaces.Discrete(3)
         
         # Observation Space:
-        # [current_price, trend_slope, cash, shares, average_buy_price, risk_tolerance]
-        # We use a Box space for continuous values.
+        # [price, short_trend, long_trend, cash, shares, average_buy_price, risk_tolerance]
         self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(7,), dtype=np.float32
         )
         
         self.initial_cash = initial_cash
         self.risk_tolerance = risk_tolerance
+        self.transaction_fee = 0.50  # Flat commission per trade to prevent micro-scalping
         
         # Environment state
         self.market = None
@@ -32,6 +32,7 @@ class TradingEnv(gym.Env):
         self.price_history = []
         self.current_step = 0
         self.max_steps = 100  # length of one simulation episode
+        self.consecutive_holds = 0
         
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -42,17 +43,21 @@ class TradingEnv(gym.Env):
         self.total_invested = 0.0
         self.price_history = [self.market.price]
         self.current_step = 0
+        self.consecutive_holds = 0
         
         return self._get_obs(), {}
         
     def _get_obs(self):
         price = self.market.price
         
-        # Calculate trend over the last 10 steps max
-        history_window = self.price_history[-10:]
-        trend = 0.0
-        if len(history_window) >= 2:
-            trend = history_window[-1] - history_window[0]
+        short_trend = 0.0
+        long_trend = 0.0
+        if len(self.price_history) >= 3:
+            short_trend = self.price_history[-1] - self.price_history[-3]
+        if len(self.price_history) >= 15:
+            long_trend = self.price_history[-1] - self.price_history[-15]
+        elif len(self.price_history) > 1:
+            long_trend = self.price_history[-1] - self.price_history[0]
             
         avg_buy_price = 0.0
         if self.shares > 0:
@@ -60,7 +65,8 @@ class TradingEnv(gym.Env):
             
         return np.array([
             price,
-            trend,
+            short_trend,
+            long_trend,
             self.cash,
             self.shares,
             avg_buy_price,
@@ -77,37 +83,75 @@ class TradingEnv(gym.Env):
         price = self.market.step()
         self.price_history.append(price)
         
+        long_trend = 0.0
+        short_trend = 0.0
+        if len(self.price_history) >= 15:
+            long_trend = self.price_history[-1] - self.price_history[-15]
+        if len(self.price_history) >= 3:
+            short_trend = self.price_history[-1] - self.price_history[-3]
+        
         # Execute the chosen action
         # 0 = HOLD, 1 = BUY, 2 = SELL
         trade_executed = False
+        
         if action == 1: # BUY
-            if self.cash >= price:
+            if self.cash >= (price + self.transaction_fee):
                 self.shares += 1
-                self.cash -= price
+                self.cash -= (price + self.transaction_fee)
                 self.total_invested += price
                 trade_executed = True
         elif action == 2: # SELL
             if self.shares > 0:
                 avg_price = self.total_invested / self.shares
                 self.shares -= 1
-                self.cash += price
+                self.cash += (price - self.transaction_fee)
                 self.total_invested -= avg_price
                 trade_executed = True
+
+        # User mandate: Treat invalid actions exactly like Holds to prevent looping loopholes
+        if not trade_executed:
+            self.consecutive_holds += 1
+        else:
+            self.consecutive_holds = 0
                 
         # Calculate new net worth
         current_net_worth = self.cash + (self.shares * price)
         
-        # The reward is the delta in net worth over this step (profit/loss)
+        # Base reward is the natural change in net worth
         reward = current_net_worth - prev_net_worth
         
-        # Reward Shaping: Heavily encourage the bot to actually interact with the market
-        if trade_executed:
-            reward += 0.5  # Bonus for making a valid trade!
-        elif action == 0:
-            reward -= 0.1  # Slight penalty for just HOLDing (prevents lazy local minimum)
-        else:
-            reward -= 0.5  # Heavy penalty for picking BUY/SELL when it has no cash/shares
+        # We completely remove all artificial penalties for invalid actions to 
+        # prevent the network from hiding in the 100% HOLD safe state.
+            
+        # Enforce valid actions so it learns what the buttons do
+        if action != 0 and not trade_executed:
+            reward -= 0.5
+            
+        # --- BEHAVIORAL REWARD SHAPING (Architected to user's exact specifications) ---
         
+        # Rule 1: "When the price is dipping buy aggressively"
+        if short_trend < -0.2 and action == 1:
+            reward += 3.0  # Strong reward for buying the dip!
+            
+        # Rule 2: "If the bot predicts the market to go up let it hold and go for bigger profits"
+        if short_trend > 0.2 and self.shares > 0:
+            if action == 0:
+                reward += 1.0  # Good! Patiently letting profits run.
+            elif action == 2:
+                reward -= 2.0  # Bad! Selling too early while it's still rocketing up.
+                
+        # Rule 3: "If the market starts coming down it sells and books the profit"
+        if short_trend < -0.2 and self.shares > 0:
+            if action == 2:
+                reward += 3.0  # Good! Selling before the crash wipes out the profit.
+            elif action == 0:
+                reward -= 2.0  # Bad! Bag-holding crashing shares.
+                
+        # Rule 4: "Penalty if the bot holds for 5 trades continuously"
+        # We lower the penalty relative to the trade rewards so it doesn't just panic-trade blindly.
+        if self.consecutive_holds >= 5:
+            reward -= 2.0
+            
         terminated = False
         truncated = self.current_step >= self.max_steps
         

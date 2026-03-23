@@ -52,6 +52,7 @@ models/
 *.h5
 *.zip
 ppo_trading_bot.zip
+logs
 
 # Temporary files
 

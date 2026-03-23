@@ -8,7 +8,8 @@ class Bot:
         self.current_trend = 0.0
         self.current_buy_threshold = 0.0
         self.current_sell_threshold = 0.0
-        self.total_invested = 0.0  # Track cost basis for calculating average buy price
+        self.total_invested = 0.0
+        self.transaction_fee = 0.10  # Commission paid on every buy/sell execution
 
     def decide(self, price):
         # Learn the pattern by updating our history
@@ -62,15 +63,15 @@ class Bot:
         return "HOLD"
 
     def act(self, action, price):
-        if action == "BUY" and self.cash >= price:
+        if action == "BUY" and self.cash >= (price + self.transaction_fee):
             self.shares += 1
-            self.cash -= price
+            self.cash -= (price + self.transaction_fee)
             self.total_invested += price
 
         elif action == "SELL" and self.shares > 0:
             avg_price = self.total_invested / self.shares
             self.shares -= 1
-            self.cash += price
+            self.cash += (price - self.transaction_fee)
             self.total_invested -= avg_price
 
 import numpy as np
@@ -93,26 +94,32 @@ class RLBot(Bot):
             
     def decide(self, price):
         self.price_history.append(price)
-        if len(self.price_history) > 10:
+        if len(self.price_history) > 50:
             self.price_history.pop(0)
 
         # Fallback behavior if no model loaded
         if not self.model:
             return "HOLD"
             
-        trend = 0.0
-        if len(self.price_history) >= 2:
-            trend = self.price_history[-1] - self.price_history[0]
+        short_trend = 0.0
+        long_trend = 0.0
+        if len(self.price_history) >= 3:
+            short_trend = self.price_history[-1] - self.price_history[-3]
+        if len(self.price_history) >= 15:
+            long_trend = self.price_history[-1] - self.price_history[-15]
+        elif len(self.price_history) > 1:
+            long_trend = self.price_history[-1] - self.price_history[0]
+        self.current_trend = long_trend  # Sync for logging
             
         avg_buy_price = 0.0
         if self.shares > 0:
             avg_buy_price = self.total_invested / self.shares
             
         # Ensure obs matches what the TradingEnv expects:
-        # [price, trend, cash, shares, avg_buy_price, risk_tolerance]
         obs = np.array([
             price,
-            trend,
+            short_trend,
+            long_trend,
             self.cash,
             self.shares,
             avg_buy_price,
