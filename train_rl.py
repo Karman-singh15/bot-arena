@@ -25,7 +25,7 @@ def main():
     # Load existing model or create new
     if os.path.exists(MODEL_PATH + ".zip"):
         print("📦 Loading existing model...")
-        model = PPO.load(MODEL_PATH, env=env)
+        model = PPO.load(MODEL_PATH, env=env, ent_coef=0.05)  # Override exploration noise
     else:
         print("🧠 Creating new model...")
         model = PPO(
@@ -35,6 +35,7 @@ def main():
             learning_rate=3e-4,
             batch_size=64,
             gamma=0.99,
+            ent_coef=0.05,  # Increased entropy coefficient for higher exploration noise
             tensorboard_log=LOG_PATH
         )
 

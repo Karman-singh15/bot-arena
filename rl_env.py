@@ -31,7 +31,7 @@ class TradingEnv(gym.Env):
         self.total_invested = 0.0
         self.price_history = []
         self.current_step = 0
-        self.max_steps = 100  # length of one simulation episode
+        self.max_steps = 500  # length of one simulation episode
         self.consecutive_holds = 0
         
     def reset(self, seed=None, options=None):
@@ -54,8 +54,8 @@ class TradingEnv(gym.Env):
         long_trend = 0.0
         if len(self.price_history) >= 3:
             short_trend = self.price_history[-1] - self.price_history[-3]
-        if len(self.price_history) >= 15:
-            long_trend = self.price_history[-1] - self.price_history[-15]
+        if len(self.price_history) >= 6:
+            long_trend = self.price_history[-1] - self.price_history[-6]
         elif len(self.price_history) > 1:
             long_trend = self.price_history[-1] - self.price_history[0]
             
@@ -76,17 +76,14 @@ class TradingEnv(gym.Env):
     def step(self, action):
         self.current_step += 1
         
-        # Calculate net worth before we take any action or price changes
-        prev_net_worth = self.cash + (self.shares * self.price_history[-1])
-        
         # The market moves forward
         price = self.market.step()
         self.price_history.append(price)
         
         long_trend = 0.0
         short_trend = 0.0
-        if len(self.price_history) >= 15:
-            long_trend = self.price_history[-1] - self.price_history[-15]
+        if len(self.price_history) >= 6:
+            long_trend = self.price_history[-1] - self.price_history[-6]
         if len(self.price_history) >= 3:
             short_trend = self.price_history[-1] - self.price_history[-3]
         
@@ -118,11 +115,10 @@ class TradingEnv(gym.Env):
         current_net_worth = self.cash + (self.shares * price)
         
         # Base reward is the natural change in net worth
-        reward = current_net_worth - prev_net_worth
+        #reward = current_net_worth - prev_net_worth
         
-        # We completely remove all artificial penalties for invalid actions to 
-        # prevent the network from hiding in the 100% HOLD safe state.
-            
+        reward = 0.0
+        
         # Enforce valid actions so it learns what the buttons do
         if action != 0 and not trade_executed:
             reward -= 0.5
@@ -130,23 +126,36 @@ class TradingEnv(gym.Env):
         # --- BEHAVIORAL REWARD SHAPING (Architected to user's exact specifications) ---
         
         # Rule 1: "When the price is dipping buy aggressively"
-        if short_trend < -0.2 and action == 1:
+        if short_trend < 0 and long_trend < 0 and action == 1:
             reward += 3.0  # Strong reward for buying the dip!
             
         # Rule 2: "If the bot predicts the market to go up let it hold and go for bigger profits"
-        if short_trend > 0.2 and self.shares > 0:
+        if short_trend > 0 and long_trend < 0 and self.shares > 0:
             if action == 0:
                 reward += 1.0  # Good! Patiently letting profits run.
             elif action == 2:
                 reward -= 2.0  # Bad! Selling too early while it's still rocketing up.
                 
         # Rule 3: "If the market starts coming down it sells and books the profit"
-        if short_trend < -0.2 and self.shares > 0:
+        if short_trend < 0 and long_trend > 0 and self.shares > 0:
             if action == 2:
                 reward += 3.0  # Good! Selling before the crash wipes out the profit.
             elif action == 0:
                 reward -= 2.0  # Bad! Bag-holding crashing shares.
+
+        if short_trend > 0 and long_trend > 0 and self.shares > 0:
+            if action == 2:
+                reward -= 2.0  # selling too early
+            elif action == 0:
+                reward += 3.0  # holding for bigger profits
+            elif action == 1:
+                reward += 1.0 # buying in a bull market
                 
+        if self.shares > 0 :
+            avg_buy_price = (self.total_invested / self.shares) 
+            reward += (price - avg_buy_price) * self.shares
+        
+
         # Rule 4: "Penalty if the bot holds for 5 trades continuously"
         # We lower the penalty relative to the trade rewards so it doesn't just panic-trade blindly.
         if self.consecutive_holds >= 5:
