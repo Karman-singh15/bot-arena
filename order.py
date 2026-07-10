@@ -1,7 +1,8 @@
 from enum import Enum
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timezone, timedelta
 
-global next_order_id = 0
+next_order_id = 0
+IST = timezone(timedelta(hours=5, minutes=30))
 
 class OrderSide(Enum):
     BID = "BID"
