@@ -15,7 +15,7 @@ class OrderType(Enum):
     STOP_LIMIT = "STOP_LIMIT"
 
 class order:
-    def __init__(self, stock, side: OrderSide, order_type: OrderType, price, quantity, timestamp):
+    def __init__(self, stock, side: OrderSide, order_type: OrderType, price, quantity, timestamp = datetime.now(IST)):
         global next_order_id
         self.order_id = next_order_id
         next_order_id += 1
@@ -27,7 +27,7 @@ class order:
         self.timestamp = datetime.now(IST)
     
 class trade:
-    def __init__(self,trade_id,stock,price,quantity,aggressor,bid_id,ask_id,timestamp):
+    def __init__(self,trade_id,stock,price,quantity,aggressor,bid_id,ask_id,timestamp = datetime.now(IST)):
         self.trade_id = trade_id
         self.stock = stock
         self.price = price
